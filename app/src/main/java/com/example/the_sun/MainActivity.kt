@@ -11,15 +11,12 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,16 +29,8 @@ import androidx.compose.ui.unit.dp
 import com.example.the_sun.data.DataSource
 import com.example.the_sun.model.Solar_Image
 import com.example.the_sun.ui.theme.The_SunTheme
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.util.Date
-
-// Enum para las pantallas de navegación
-sealed class Screen(val title: String) {
-    object Home : Screen("Home")
-    object Info : Screen("Info")
-    object Settings : Screen("Settings")
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,17 +38,80 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             The_SunTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                val drawerState = rememberDrawerState(DrawerValue.Closed)
+                val scope = rememberCoroutineScope()
+
+                var selectedScreen by remember { mutableStateOf("home") }
+
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet {
+
+                            Image(
+                                painter = painterResource(id = R.drawable.portada),
+                                contentDescription = "Logo Sol",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .padding(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            AssistChip(
+                                onClick = {
+                                    selectedScreen = "home"
+                                    scope.launch { drawerState.close() }
+                                },
+                                label = { Text("Home") },
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth()
+                            )
+
+                            AssistChip(
+                                onClick = {
+                                    selectedScreen = "download"
+                                    scope.launch { drawerState.close() }
+                                },
+                                label = { Text("Download more info") },
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth()
+                            )
+
+                            AssistChip(
+                                onClick = { /* sin función */ },
+                                label = { Text("Email") },
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth()
+                            )
+                        }
+                    }
                 ) {
-                    SolarApp(
-                        modifier = Modifier.padding(
-                            start = dimensionResource(R.dimen.small_padding),
-                            top = dimensionResource(R.dimen.small_padding),
-                            end = dimensionResource(R.dimen.small_padding),
-                        )
-                    )
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        when (selectedScreen) {
+                            "home" -> SolarApp(
+                                drawerState = drawerState,
+                                scope = scope,
+                                modifier = Modifier.padding(
+                                    start = dimensionResource(R.dimen.small_padding),
+                                    top = dimensionResource(R.dimen.small_padding),
+                                    end = dimensionResource(R.dimen.small_padding),
+                                )
+                            )
+
+                            "download" -> DownloadScreen(
+                                drawerState = drawerState,
+                                scope = scope
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -144,269 +196,151 @@ fun SolarImageCard(
 }
 
 @Composable
-fun InfoScreen() {
-    var showProgress by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf<Long?>(null) }
+fun SolarApp(
+    drawerState: DrawerState,
+    scope: CoroutineScope,
+    modifier: Modifier = Modifier
+) {
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Botón para mostrar progreso
-        Button(
-            onClick = {
-                showProgress = true
-                // Simular una tarea que toma tiempo
-                LaunchedEffect(showProgress) {
-                    if (showProgress) {
-                        delay(3000) // 3 segundos
-                        showProgress = false
+    var solarImages by remember { mutableStateOf(DataSource.solarImages.toMutableList()) }
+
+    var favCount by remember { mutableStateOf(0) }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+
+        bottomBar = {
+            BottomAppBar(
+                actions = {
+
+                    IconButton(onClick = {
+                        scope.launch {
+                            drawerState.open()
+                        }
+                    }) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Abrir menú lateral")
+                    }
+
+                    BadgedBox(
+                        badge = {
+                            if (favCount > 0) {
+                                Badge { Text(favCount.toString()) }
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = {
+                            favCount += 1
+                        }) {
+                            Icon(Icons.Filled.Favorite, contentDescription = "Añadir favorito")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+                },
+
+                floatingActionButton = {
+                    FloatingActionButton(onClick = { /* sin funcionalidad */ }) {
+                        Icon(Icons.Filled.Add, contentDescription = "FAB")
                     }
                 }
-            },
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text("Mostrar Progreso")
+            )
         }
+    ) { innerPadding ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.small_padding)),
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.small_padding)),
+            modifier = modifier.padding(innerPadding)
+        ) {
+            items(solarImages) { solarImage ->
+                val imageName = stringResource(id = solarImage.name)
 
-        // Indicador de progreso
-        if (showProgress) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text("Cargando...", modifier = Modifier.padding(bottom = 16.dp))
-                CircularProgressIndicator()
-                Spacer(modifier = Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(0.8f)
+                SolarImageCard(
+                    solarImage = solarImage,
+                    imageName = imageName,
+                    onCardClick = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Imagen: $imageName")
+                        }
+                    },
+                    onCopy = {
+                        solarImages = (solarImages + solarImage.copy()).toMutableList()
+                    },
+                    onDelete = {
+                        solarImages = solarImages.toMutableList().also { it.remove(solarImage) }
+                    }
                 )
             }
         }
-
-        // Botón para DatePicker (corregido el comentario)
-        Button(
-            onClick = { showDatePicker = true },
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Icon(Icons.Filled.DateRange, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Visit planetarium. Select date")
-        }
-
-        // Mostrar fecha seleccionada
-        selectedDate?.let { date ->
-            Text(
-                "Fecha seleccionada: ${Date(date)}",
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-
-        // DatePicker Dialog simplificado
-        if (showDatePicker) {
-            AlertDialog(
-                onDismissRequest = { showDatePicker = false },
-                title = { Text("Seleccionar fecha") },
-                text = {
-                    Text("Funcionalidad de DatePicker - En una implementación real usarías DatePickerDialog")
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            selectedDate = System.currentTimeMillis()
-                            showDatePicker = false
-                        }
-                    ) {
-                        Text("Seleccionar fecha actual")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showDatePicker = false }
-                    ) {
-                        Text("Cancelar")
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun SettingsScreen() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            "Configuración",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Aquí puedes configurar las opciones de la aplicación")
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SolarApp(modifier: Modifier = Modifier) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+fun DownloadScreen(
+    drawerState: DrawerState,
+    scope: CoroutineScope
+) {
+    var isDownloading by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
 
-    // Estado para el drawer - CORREGIDO
-    val drawerState = remember { DrawerState(DrawerValue.Closed) }
+    if (isDownloading) {
+        LaunchedEffect(Unit) {
+            progress = 0f
+            val totalSteps = 100
+            val delayMillis = 30L
 
-    // Estado para la pantalla actual
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
-
-    // Estado para el contador de favoritos
-    var favoriteCount by remember { mutableIntStateOf(0) }
-
-    // Mutable list of images (copy/delete modifies this)
-    var solarImages by remember { mutableStateOf(DataSource.solarImages.toMutableList()) }
-
-    // ModalNavigationDrawer - CORREGIDO
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                // Imagen en la parte superior del drawer
-                Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                    contentDescription = "Drawer Header",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(150.dp)
-                        .padding(16.dp),
-                    contentScale = ContentScale.Crop
-                )
-
-                // Opciones del menú
-                NavigationDrawerItem(
-                    label = { Text("Home") },
-                    selected = currentScreen == Screen.Home,
-                    onClick = {
-                        currentScreen = Screen.Home
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = {
-                        Icon(Icons.Filled.Home, contentDescription = "Home")
-                    }
-                )
-
-                NavigationDrawerItem(
-                    label = { Text("Info") },
-                    selected = currentScreen == Screen.Info,
-                    onClick = {
-                        currentScreen = Screen.Info
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = {
-                        Icon(Icons.Filled.Info, contentDescription = "Info")
-                    }
-                )
-
-                NavigationDrawerItem(
-                    label = { Text("Settings") },
-                    selected = currentScreen == Screen.Settings,
-                    onClick = {
-                        currentScreen = Screen.Settings
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
-                )
+            repeat(totalSteps) {
+                kotlinx.coroutines.delay(delayMillis)
+                progress += 1f / totalSteps
             }
+            isDownloading = false
         }
-    ) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                BottomAppBar {
-                    // Icono ArrowBack para abrir el drawer
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                drawerState.open()
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Abrir menú")
-                    }
+    }
 
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // BadgedBox con icono Favourite
-                    BadgedBox(
-                        badge = {
-                            Badge {
-                                Text(favoriteCount.toString())
-                            }
-                        }
-                    ) {
-                        IconButton(
-                            onClick = { favoriteCount++ }
-                        ) {
-                            Icon(Icons.Filled.Favorite, contentDescription = "Favoritos")
-                        }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Download Screen") },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        scope.launch { drawerState.open() }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "abrir menú")
                     }
                 }
-            },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { /* Sin funcionalidad */ }
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Agregar")
-                }
-            },
-            floatingActionButtonPosition = FabPosition.Center,
-            // CORREGIDO: Cambiado a isFloatingActionButtonDocked
-            isFloatingActionButtonDocked = true
-        ) { innerPadding ->
-            // Contenido según la pantalla actual
-            when (currentScreen) {
-                Screen.Home -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.small_padding)),
-                        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.small_padding)),
-                        modifier = modifier.padding(innerPadding)
-                    ) {
-                        items(solarImages) { solarImage ->
-                            val imageName = stringResource(id = solarImage.name)
+            )
+        }
+    ) { inner ->
+        Column(
+            modifier = Modifier
+                .padding(inner)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (isDownloading) {
+                CircularProgressIndicator(
+                    progress = progress,
+                    strokeWidth = 8.dp,
+                    modifier = Modifier.size(120.dp)
+                )
 
-                            SolarImageCard(
-                                solarImage = solarImage,
-                                imageName = imageName,
-                                onCardClick = {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Imagen: $imageName")
-                                    }
-                                },
-                                onCopy = {
-                                    solarImages = (solarImages + solarImage.copy()).toMutableList()
-                                },
-                                onDelete = {
-                                    solarImages = solarImages.toMutableList().also { it.remove(solarImage) }
-                                }
-                            )
-                        }
+                Spacer(Modifier.height(20.dp))
+
+                Text("${(progress * 100).toInt()}% descargado")
+            }
+
+            Button(
+                onClick = {
+                    if (!isDownloading) {
+                        isDownloading = true
                     }
-                }
-                Screen.Info -> {
-                    InfoScreen()
-                }
-                Screen.Settings -> {
-                    SettingsScreen()
-                }
+                },
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text("Download more info")
             }
         }
     }
